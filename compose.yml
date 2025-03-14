@@ -21,14 +21,11 @@ services:
     image: redis:alpine
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - REDIS_USER=${REDIS_USER}
-      - REDIS_USER_PASSWORD=${REDIS_USER_PASSWORD}
     networks:
       - nodehistj
     volumes:
-      - ./docker/redis-entrypoint.sh:/entrypoint.sh
-    entrypoint: [ "/entrypoint.sh" ]
-    command: [ "redis-server", "/usr/local/etc/redis/redis.conf", "--aclfile", "/usr/local/etc/redis/users.acl" ]
+      - ./docker/redis-init.sh:/usr/local/bin/redis-init.sh
+    command: [ "/usr/local/bin/redis-init.sh" ]
     healthcheck:
       test: redis-cli ping
       start_period: 30s
@@ -41,6 +38,7 @@ services:
   kafka:
     image: bitnami/kafka
     restart: unless-stopped
+    hostname: kafka
     networks:
       - nodehistj
     environment:
@@ -62,8 +60,11 @@ services:
       - nodehistj
     restart: unless-stopped
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - MONGODB_ROOT_USER=${MONGODB_ROOT_USERNAME}
+      - MONGODB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD}
+      - MONGODB_DATABASE=nodehistj
+      - MONGODB_USERNAME=${MONGODB_USERNAME}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
     volumes:
       - mongo-data:/bitnami/mongodb
     healthcheck:
@@ -91,6 +92,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      nodehistj-today-nodelist:
+        condition: service_healthy
 
   nodehistj-today-nodelist:
     image: gavrilovegor519/nodehistj-today-nodelist
@@ -107,8 +110,19 @@ services:
     environment:
       - KAFKA_BOOTSTRAP_SERVER=kafka:9092
       - MINIO_URL=http://minio:9000
+      - REDIS_HOST=redis
       - MINIO_USER=${MINIO_ROOT_USER}
       - MINIO_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - MONGODB_HOST=mongo
+      - MONGODB_PORT=27017
+      - MONGODB_USERNAME=${MONGODB_USERNAME}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
+    healthcheck:
+      test: curl --fail localhost:8081/actuator/health || grep "UP" || exit 1
+      start_period: 30s
+      interval: 5s
+      timeout: 10s
+      retries: 5
     depends_on:
       minio:
         condition: service_healthy
