@@ -30,6 +30,21 @@ services:
       timeout: 10s
       retries: 5
     restart: unless-stopped
+  redis-2:
+    image: redis:alpine
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "6380:6379"
+    networks:
+      - nodehistj
+    healthcheck:
+      test: redis-cli ping || exit 1
+      start_period: 30s
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
   kafka:
     image: bitnami/kafka
     restart: unless-stopped
@@ -60,6 +75,25 @@ services:
       - POSTGRES_DB=nodehistj
     volumes:
       - postgres_storage:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U postgres || exit 1
+      start_period: 30s
+      interval: 5s
+      timeout: 10s
+      retries: 5
+  postgres-2:
+    image: postgres:alpine
+    ports:
+      - "5433:5432"
+    networks:
+      - nodehistj
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=nodehistj
+    volumes:
+      - postgres_storage_2:/var/lib/postgresql/data
     healthcheck:
       test: pg_isready -U postgres || exit 1
       start_period: 30s
@@ -103,9 +137,42 @@ services:
       - MINIO_URL=http://minio:9000
       - REDIS_HOST=redis
       - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PORT=6379
       - MINIO_USER=${MINIO_ROOT_USER}
       - MINIO_PASSWORD=${MINIO_ROOT_PASSWORD}
       - POSTGRES_HOST=postgres:5432
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    depends_on:
+      minio:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  nodehistj-newest-nodelists:
+    image: gavrilovegor519/nodehistj-newest-nodelists
+    build:
+      context: ./nodehistj-newest-nodelists
+      secrets:
+        - github_username
+        - github_token
+    networks:
+      - nodehistj
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    environment:
+      - KAFKA_BOOTSTRAP_SERVER=kafka:9092
+      - MINIO_URL=http://minio:9000
+      - REDIS_HOST=redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_PORT=6380
+      - MINIO_USER=${MINIO_ROOT_USER}
+      - MINIO_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - POSTGRES_HOST=postgres:5433
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     depends_on:
@@ -131,3 +198,4 @@ networks:
 volumes:
   minio_storage:
   postgres_storage:
+  postgres_storage_2:

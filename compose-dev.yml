@@ -33,6 +33,21 @@ services:
       timeout: 10s
       retries: 5
     restart: unless-stopped
+  redis-2:
+    image: redis:alpine
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "6380:6379"
+    networks:
+      - nodehistj
+    healthcheck:
+      test: redis-cli ping || exit 1
+      start_period: 30s
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
   kafka:
     image: bitnami/kafka
     restart: unless-stopped
@@ -75,6 +90,25 @@ services:
       interval: 5s
       timeout: 10s
       retries: 5
+  postgres-2:
+    image: postgres:alpine
+    ports:
+      - "5433:5432"
+    networks:
+      - nodehistj
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=nodehistj
+    volumes:
+      - postgres_storage_2:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U postgres || exit 1
+      start_period: 30s
+      interval: 5s
+      timeout: 10s
+      retries: 5
 
 networks:
   nodehistj:
@@ -83,3 +117,4 @@ networks:
 volumes:
   minio_storage:
   postgres_storage:
+  postgres_storage_2:
